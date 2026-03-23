@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import yfinance as yf
+from scipy.stats import spearmanr
 
 # ──────────────────────────────────────────────────────────────
 # Constants
@@ -147,6 +148,8 @@ def evaluate_strategy(predictions, data):
     portfolio_returns = []
     dates = []
     cash_days = 0
+    daily_spearman = []
+    daily_topk_precision = []
 
     for date, group in df.groupby("date"):
         if len(group) < TOP_K:
@@ -162,6 +165,13 @@ def evaluate_strategy(predictions, data):
 
         portfolio_returns.append(daily_return)
         dates.append(date)
+
+        # Ranking quality metrics
+        rho, _ = spearmanr(group["predicted"], group["actual"])
+        daily_spearman.append(rho)
+        actual_top = set(group.nlargest(TOP_K, "actual").index)
+        pred_top = set(top_k.index)
+        daily_topk_precision.append(len(pred_top & actual_top) / TOP_K)
 
     portfolio_returns = pd.Series(
         portfolio_returns, index=pd.DatetimeIndex(dates)
@@ -199,6 +209,10 @@ def evaluate_strategy(predictions, data):
     trading_days = len(portfolio_returns)
     num_trades = (trading_days - cash_days) * TOP_K
 
+    # --- Ranking quality ---
+    mean_spearman = round(float(np.mean(daily_spearman)), 4)
+    mean_topk_precision = round(float(np.mean(daily_topk_precision)), 4)
+
     return {
         "sharpe_ratio": round(float(sharpe), 6),
         "alpha_pct": round(float(alpha_pct), 1),
@@ -209,6 +223,8 @@ def evaluate_strategy(predictions, data):
         "num_trades": int(num_trades),
         "cash_days": int(cash_days),
         "trading_days": int(trading_days),
+        "mean_spearman": mean_spearman,
+        "mean_topk_precision": mean_topk_precision,
     }
 
 
@@ -224,6 +240,8 @@ def print_results(metrics, training_seconds, total_seconds):
     print(f"num_trades:          {metrics['num_trades']}")
     print(f"cash_days:           {metrics['cash_days']}")
     print(f"trading_days:        {metrics['trading_days']}")
+    print(f"mean_spearman:       {metrics['mean_spearman']:.4f}")
+    print(f"mean_topk_precision: {metrics['mean_topk_precision']:.4f}")
     print(f"training_seconds:    {training_seconds:.1f}")
     print(f"total_seconds:       {total_seconds:.1f}")
 
