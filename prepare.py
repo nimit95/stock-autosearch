@@ -17,7 +17,7 @@ import yfinance as yf
 TRAIN_START = "2015-01-01"
 TRAIN_END = "2022-12-31"
 TEST_START = "2023-01-01"
-TEST_END = "2024-12-31"
+TEST_END = "2026-03-23"
 TIME_BUDGET = 300  # seconds (wall-clock training time)
 TOP_K = 10  # stocks held in portfolio each day
 BENCHMARK_TICKER = "^NSEI"  # Nifty 50 index
