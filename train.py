@@ -178,7 +178,7 @@ def main():
 
     model = xgb.XGBRegressor(
         n_estimators=500,
-        max_depth=6,
+        max_depth=8,
         learning_rate=0.05,
         subsample=0.8,
         colsample_bytree=0.8,
