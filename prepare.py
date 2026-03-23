@@ -316,7 +316,10 @@ def evaluate_strategy(predictions, data):
     total_return_pct = ((1 + portfolio_returns).prod() - 1) * 100
 
     # --- Benchmark return ---
-    benchmark_return_pct = ((1 + bench).prod() - 1) * 100
+    bench_prod = (1 + bench).prod()
+    if hasattr(bench_prod, '__len__'):
+        bench_prod = float(bench_prod.iloc[0]) if len(bench_prod) > 0 else 1.0
+    benchmark_return_pct = (float(bench_prod) - 1) * 100
 
     # --- Alpha ---
     alpha_pct = total_return_pct - benchmark_return_pct

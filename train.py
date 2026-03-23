@@ -13,6 +13,10 @@ import xgboost as xgb
 from prepare import (
     TRAIN_END,
     TEST_START,
+    NIFTY_50,
+    NIFTY_100,
+    NIFTY_200,
+    NIFTY_500,
     evaluate_strategy,
     load_data,
     print_results,
