@@ -126,7 +126,12 @@ def build_dataset(stocks, benchmark_returns):
     chunks = []
 
     for ticker, df in stocks.items():
-        features = compute_features(df)
+        if ticker not in NIFTY_50:
+            continue
+        try:
+            features = compute_features(df)
+        except Exception:
+            continue
 
         fwd_1d = df["Close"].pct_change().shift(-1)  # fixed: for evaluation P&L
         target = compute_target(df)  # experimental: for training
@@ -182,12 +187,12 @@ def main():
 
     model = xgb.XGBRegressor(
         n_estimators=450,
-        max_depth=7,
+        max_depth=10,
         learning_rate=0.05,
         subsample=0.8,
         colsample_bytree=0.8,
-        reg_alpha=0.5,
-        reg_lambda=1.5,
+        reg_alpha=1.0,
+        reg_lambda=3.0,
         colsample_bynode=0.8,
         random_state=42,
     )
