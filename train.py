@@ -186,13 +186,13 @@ def main():
     train_start = time.time()
 
     model = xgb.XGBRegressor(
-        n_estimators=450,
-        max_depth=10,
-        learning_rate=0.05,
+        n_estimators=600,
+        max_depth=12,
+        learning_rate=0.08,
         subsample=0.8,
         colsample_bytree=0.8,
         reg_alpha=1.0,
-        reg_lambda=3.0,
+        reg_lambda=1.5,
         colsample_bynode=0.8,
         random_state=42,
     )
