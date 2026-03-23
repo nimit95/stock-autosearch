@@ -183,6 +183,7 @@ def main():
         subsample=0.8,
         colsample_bytree=0.8,
         reg_alpha=0.5,
+        reg_lambda=1.5,
         random_state=42,
     )
     model.fit(data["X_train"], data["y_train"])
