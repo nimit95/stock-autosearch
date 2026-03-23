@@ -143,14 +143,23 @@ def evaluate_strategy(predictions, data):
         }
     )
 
+    risk_free_daily = 0.07 / 252
     portfolio_returns = []
     dates = []
+    cash_days = 0
 
     for date, group in df.groupby("date"):
         if len(group) < TOP_K:
             continue
         top_k = group.nlargest(TOP_K, "predicted")
-        daily_return = top_k["actual"].mean()
+
+        # Sit in cash if model predicts top stocks will go down
+        if top_k["predicted"].mean() < 0:
+            daily_return = risk_free_daily
+            cash_days += 1
+        else:
+            daily_return = top_k["actual"].mean()
+
         portfolio_returns.append(daily_return)
         dates.append(date)
 
@@ -163,7 +172,6 @@ def evaluate_strategy(predictions, data):
     bench = bench.reindex(portfolio_returns.index).fillna(0)
 
     # --- Sharpe ratio (annualized, 7% risk-free for India) ---
-    risk_free_daily = 0.07 / 252
     excess = portfolio_returns - risk_free_daily
     sharpe = (
         (excess.mean() / excess.std()) * np.sqrt(252) if excess.std() > 0 else 0.0
@@ -188,7 +196,8 @@ def evaluate_strategy(predictions, data):
     win_rate_pct = (portfolio_returns > 0).mean() * 100
 
     # --- Trade count ---
-    num_trades = len(portfolio_returns) * TOP_K
+    trading_days = len(portfolio_returns)
+    num_trades = (trading_days - cash_days) * TOP_K
 
     return {
         "sharpe_ratio": round(float(sharpe), 6),
@@ -198,6 +207,8 @@ def evaluate_strategy(predictions, data):
         "max_drawdown_pct": round(float(max_drawdown_pct), 1),
         "win_rate_pct": round(float(win_rate_pct), 1),
         "num_trades": int(num_trades),
+        "cash_days": int(cash_days),
+        "trading_days": int(trading_days),
     }
 
 
@@ -211,6 +222,8 @@ def print_results(metrics, training_seconds, total_seconds):
     print(f"max_drawdown_pct:    {metrics['max_drawdown_pct']:.1f}")
     print(f"win_rate_pct:        {metrics['win_rate_pct']:.1f}")
     print(f"num_trades:          {metrics['num_trades']}")
+    print(f"cash_days:           {metrics['cash_days']}")
+    print(f"trading_days:        {metrics['trading_days']}")
     print(f"training_seconds:    {training_seconds:.1f}")
     print(f"total_seconds:       {total_seconds:.1f}")
 
