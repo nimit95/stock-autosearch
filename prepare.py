@@ -21,7 +21,7 @@ TEST_START = "2023-01-01"
 TEST_END = "2026-03-23"
 TIME_BUDGET = 300  # seconds (wall-clock training time)
 TOP_K = 10  # stocks held in portfolio each rebalance
-HOLD_DAYS = 1
+HOLD_DAYS = 10
 BENCHMARK_TICKER = "^NSEI"  # Nifty 50 index
 CACHE_DIR = Path.home() / ".cache" / "autoresearch"
 
