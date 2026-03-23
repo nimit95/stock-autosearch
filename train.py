@@ -114,7 +114,7 @@ def compute_target(df):
         df["Close"].pct_change(5).shift(-5)          # 5-day forward return
         (df["Close"].shift(-1) > df["Close"]).astype(float)  # binary up/down
     """
-    return df["Close"].pct_change(5).shift(-5)
+    return df["Close"].pct_change(7).shift(-7)
 
 
 def build_dataset(stocks, benchmark_returns):
