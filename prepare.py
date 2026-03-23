@@ -20,7 +20,8 @@ TRAIN_END = "2022-12-31"
 TEST_START = "2023-01-01"
 TEST_END = "2026-03-23"
 TIME_BUDGET = 300  # seconds (wall-clock training time)
-TOP_K = 10  # stocks held in portfolio each day
+TOP_K = 10  # stocks held in portfolio each rebalance
+HOLD_DAYS = 1
 BENCHMARK_TICKER = "^NSEI"  # Nifty 50 index
 CACHE_DIR = Path.home() / ".cache" / "autoresearch"
 
@@ -126,9 +127,10 @@ def load_data():
 
 def evaluate_strategy(predictions, data):
     """
-    Backtest a long-only daily-rebalanced portfolio.
+    Backtest a long-only portfolio with configurable holding period.
 
-    Each day, go long the top TOP_K stocks by predicted return (equal weight).
+    Every HOLD_DAYS days, pick top TOP_K stocks by predicted return (equal weight).
+    Hold for HOLD_DAYS days, then rebalance. Daily returns are tracked for sharpe.
     Compare against Nifty 50 benchmark.
 
     Required keys in data:
@@ -145,36 +147,57 @@ def evaluate_strategy(predictions, data):
     )
 
     risk_free_daily = 0.07 / 252
+    all_dates = sorted(df["date"].unique())
     portfolio_returns = []
-    dates = []
+    ret_dates = []
     cash_days = 0
-    daily_spearman = []
-    daily_topk_precision = []
+    rebalance_spearman = []
+    rebalance_topk_precision = []
+    num_rebalances = 0
 
-    for date, group in df.groupby("date"):
+    held_tickers = None
+    days_since_rebalance = HOLD_DAYS  # force rebalance on first day
+
+    for date in all_dates:
+        group = df[df["date"] == date]
         if len(group) < TOP_K:
             continue
-        top_k = group.nlargest(TOP_K, "predicted")
 
-        # Sit in cash if model predicts top stocks will go down
-        if top_k["predicted"].mean() < 0:
+        # Rebalance if holding period is up
+        if days_since_rebalance >= HOLD_DAYS:
+            top_k = group.nlargest(TOP_K, "predicted")
+            held_tickers = set(top_k["ticker"].values)
+            days_since_rebalance = 0
+            num_rebalances += 1
+
+            # Cash signal: sit out if predictions are bearish
+            if top_k["predicted"].mean() < 0:
+                held_tickers = None
+                cash_days += HOLD_DAYS  # approximate
+
+            # Ranking quality (only on rebalance days)
+            rho, _ = spearmanr(group["predicted"], group["actual"])
+            rebalance_spearman.append(rho)
+            actual_top = set(group.nlargest(TOP_K, "actual")["ticker"].values)
+            pred_top = set(top_k["ticker"].values)
+            rebalance_topk_precision.append(len(pred_top & actual_top) / TOP_K)
+
+        # Daily return from held stocks
+        if held_tickers is None:
             daily_return = risk_free_daily
-            cash_days += 1
         else:
-            daily_return = top_k["actual"].mean()
+            held = group[group["ticker"].isin(held_tickers)]
+            if len(held) > 0:
+                daily_return = held["actual"].mean()
+            else:
+                daily_return = risk_free_daily
 
         portfolio_returns.append(daily_return)
-        dates.append(date)
-
-        # Ranking quality metrics
-        rho, _ = spearmanr(group["predicted"], group["actual"])
-        daily_spearman.append(rho)
-        actual_top = set(group.nlargest(TOP_K, "actual").index)
-        pred_top = set(top_k.index)
-        daily_topk_precision.append(len(pred_top & actual_top) / TOP_K)
+        ret_dates.append(date)
+        days_since_rebalance += 1
 
     portfolio_returns = pd.Series(
-        portfolio_returns, index=pd.DatetimeIndex(dates)
+        portfolio_returns, index=pd.DatetimeIndex(ret_dates)
     )
 
     # Align benchmark
@@ -207,11 +230,11 @@ def evaluate_strategy(predictions, data):
 
     # --- Trade count ---
     trading_days = len(portfolio_returns)
-    num_trades = (trading_days - cash_days) * TOP_K
+    num_trades = num_rebalances * TOP_K
 
     # --- Ranking quality ---
-    mean_spearman = round(float(np.mean(daily_spearman)), 4)
-    mean_topk_precision = round(float(np.mean(daily_topk_precision)), 4)
+    mean_spearman = round(float(np.mean(rebalance_spearman)), 4) if rebalance_spearman else 0.0
+    mean_topk_precision = round(float(np.mean(rebalance_topk_precision)), 4) if rebalance_topk_precision else 0.0
 
     return {
         "sharpe_ratio": round(float(sharpe), 6),
@@ -223,6 +246,8 @@ def evaluate_strategy(predictions, data):
         "num_trades": int(num_trades),
         "cash_days": int(cash_days),
         "trading_days": int(trading_days),
+        "hold_days": HOLD_DAYS,
+        "num_rebalances": int(num_rebalances),
         "mean_spearman": mean_spearman,
         "mean_topk_precision": mean_topk_precision,
     }
@@ -240,6 +265,8 @@ def print_results(metrics, training_seconds, total_seconds):
     print(f"num_trades:          {metrics['num_trades']}")
     print(f"cash_days:           {metrics['cash_days']}")
     print(f"trading_days:        {metrics['trading_days']}")
+    print(f"hold_days:           {metrics['hold_days']}")
+    print(f"num_rebalances:      {metrics['num_rebalances']}")
     print(f"mean_spearman:       {metrics['mean_spearman']:.4f}")
     print(f"mean_topk_precision: {metrics['mean_topk_precision']:.4f}")
     print(f"training_seconds:    {training_seconds:.1f}")
