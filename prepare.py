@@ -15,7 +15,7 @@ from scipy.stats import spearmanr
 # Constants
 # ──────────────────────────────────────────────────────────────
 
-TRAIN_START = "2015-01-01"
+TRAIN_START = "2000-01-01"
 TRAIN_END = "2022-12-31"
 TEST_START = "2023-01-01"
 TEST_END = "2026-03-23"

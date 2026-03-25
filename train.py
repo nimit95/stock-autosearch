@@ -126,7 +126,7 @@ def build_dataset(stocks, benchmark_returns):
     chunks = []
 
     for ticker, df in stocks.items():
-        if ticker not in NIFTY_50:
+        if ticker not in NIFTY_50 and ticker not in NIFTY_NEXT_50:
             continue
         try:
             features = compute_features(df)
