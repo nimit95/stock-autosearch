@@ -101,15 +101,15 @@ NIFTY_SMALLCAP_250 = [
     "SUPRAJIT.NS", "SUNDRMFAST.NS", "ENDURANCE.NS", "CRAFTSMAN.NS",
     "ZYDUSWELL.NS", "JBCHEPHARM.NS", "GRANULES.NS", "AJANTPHARM.NS",
     "APLLTD.NS", "SUDARSCHEM.NS", "AARTI.NS", "NOCIL.NS",
-    "GPPL.NS", "GSPL.NS", "TORNTPOWER.NS", "TATACOMM.NS",
+    "GPPL.NS", "GSPL.NS",
     "CENTURYPLY.NS", "GREENPANEL.NS", "ASTRAZEN.NS", "PFIZER.NS",
     "ABBOTINDIA.NS", "BAYERCROP.NS", "RALLIS.NS", "GHCL.NS",
     "KAJARIACER.NS", "CERA.NS", "ORIENTELEC.NS", "VGUARD.NS",
     "TVSELECT.NS", "AMBER.NS", "BLUEJET.NS", "KAYNES.NS",
     "DIXON.NS", "AFFLE.NS", "MAPMYINDIA.NS", "SAKSOFT.NS",
     "NIITLTD.NS", "BSOFT.NS", "ZENTEC.NS", "QUESS.NS",
-    "TEAMLEASE.NS", "SIS.NS", "KALYANKJIL.NS", "TITAN.NS",
-    "CAMPUS.NS", "METROBRAND.NS", "BATA.NS", "RELAXO.NS",
+    "TEAMLEASE.NS", "SIS.NS", "KALYANKJIL.NS",
+    "CAMPUS.NS", "METROBRAND.NS", "BATA.NS",
     "ECLERX.NS", "CRISIL.NS", "ICRA.NS", "CARERATING.NS",
     "CREDITACC.NS", "EQUITASBNK.NS", "UJJIVANSFB.NS", "ESAFSFB.NS",
     "RBLBANK.NS", "KARNATBANK.NS", "DCBBANK.NS", "JKBANK.NS",
@@ -121,7 +121,7 @@ NIFTY_SMALLCAP_250 = [
     "ALLCARGO.NS", "GATEWAY.NS", "MAHLOG.NS", "VIJAYA.NS",
     "JSWINFRA.NS", "ADANIGREEN.NS", "ADANITRANS.NS", "ADANIGAS.NS",
     "ATGL.NS", "AWL.NS", "ADANIPOWER.NS", "ADANIWILMAR.NS",
-    "PPLPHARMA.NS", "MANKIND.NS", "ERIS.NS", "SUNPHARMA.NS",
+    "PPLPHARMA.NS", "MANKIND.NS", "ERIS.NS",
     "STARCEMENT.NS", "PRISMJOINTS.NS", "HEIDELBERG.NS", "NUVOCO.NS",
     "JKLAKSHMI.NS", "BIRLACORPN.NS", "ORIENTCEM.NS", "SAGAR.NS",
     "SWSOLAR.NS", "WAAREE.NS", "BOROSIL.NS", "POONAWALLA.NS",
@@ -129,16 +129,15 @@ NIFTY_SMALLCAP_250 = [
     "TIINDIA.NS", "THERMAX.NS", "GREAVESCOT.NS", "CGPOWER.NS",
     "TRITURBINE.NS", "JYOTHYLAB.NS", "GALAXYSURF.NS", "HATSUN.NS",
     "HERITGFOOD.NS", "ZYDUSLIFE.NS", "GLAND.NS", "VINATIORGA.NS",
-    "SHILPAMED.NS", "JUBLPHARMA.NS", "PGHH.NS", "MARICO.NS",
+    "SHILPAMED.NS", "JUBLPHARMA.NS", "PGHH.NS",
     "KEI.NS", "APAR.NS", "POWERMECH.NS", "KALPATPOWR.NS",
     "KEC.NS", "IRCON.NS", "RVNL.NS", "ENGINERSIN.NS",
     "NBCC.NS", "HCC.NS", "NCC.NS", "JMCPROJECT.NS",
     "ASHOKA.NS", "SADBHAV.NS", "PEL.NS", "SCHAEFFLER.NS",
     "SKFINDIA.NS", "TIMKEN.NS", "CEATLTD.NS", "APOLLOTYRE.NS",
     "JKTYRE.NS", "EXIDEIND.NS", "AMARAJABAT.NS", "LUMAXTECH.NS",
-    "GENUSPOWER.NS", "NESCO.NS", "RPOWER.NS", "NHPC.NS",
-    "SJVN.NS", "TATAPOWER.NS", "JSWENERGY.NS", "CESC.NS",
-    "TORNTPOWER.NS", "KPRMILL.NS", "GOKEX.NS", "CCL.NS",
+    "GENUSPOWER.NS", "NESCO.NS", "RPOWER.NS",
+    "KPRMILL.NS", "GOKEX.NS", "CCL.NS",
 ]
 
 # Composite lists
@@ -163,7 +162,7 @@ def _flatten_columns(df):
 
 
 def fetch_data():
-    """Fetch OHLCV data for all Nifty 100 stocks + benchmark. Caches to disk."""
+    """Fetch OHLCV data for all stocks in UNIVERSE + benchmark. Caches to disk."""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_file = CACHE_DIR / "market_data.pkl"
 
@@ -249,7 +248,8 @@ def evaluate_strategy(predictions, data):
     )
 
     risk_free_daily = 0.07 / 252
-    all_dates = sorted(df["date"].unique())
+    grouped = df.groupby("date")
+    all_dates = sorted(grouped.groups.keys())
     portfolio_returns = []
     ret_dates = []
     cash_days = 0
@@ -261,7 +261,7 @@ def evaluate_strategy(predictions, data):
     days_since_rebalance = HOLD_DAYS  # force rebalance on first day
 
     for date in all_dates:
-        group = df[df["date"] == date]
+        group = grouped.get_group(date)
         if len(group) < TOP_K:
             continue
 
@@ -275,7 +275,6 @@ def evaluate_strategy(predictions, data):
             # Cash signal: sit out if predictions are bearish
             if top_k["predicted"].mean() < 0:
                 held_tickers = None
-                cash_days += HOLD_DAYS  # approximate
 
             # Ranking quality (only on rebalance days)
             rho, _ = spearmanr(group["predicted"], group["actual"])
@@ -287,12 +286,14 @@ def evaluate_strategy(predictions, data):
         # Daily return from held stocks
         if held_tickers is None:
             daily_return = risk_free_daily
+            cash_days += 1
         else:
             held = group[group["ticker"].isin(held_tickers)]
             if len(held) > 0:
                 daily_return = held["actual"].mean()
             else:
                 daily_return = risk_free_daily
+                cash_days += 1
 
         portfolio_returns.append(daily_return)
         ret_dates.append(date)
@@ -316,10 +317,7 @@ def evaluate_strategy(predictions, data):
     total_return_pct = ((1 + portfolio_returns).prod() - 1) * 100
 
     # --- Benchmark return ---
-    bench_prod = (1 + bench).prod()
-    if hasattr(bench_prod, '__len__'):
-        bench_prod = float(bench_prod.iloc[0]) if len(bench_prod) > 0 else 1.0
-    benchmark_return_pct = (float(bench_prod) - 1) * 100
+    benchmark_return_pct = (float((1 + bench).prod()) - 1) * 100
 
     # --- Alpha ---
     alpha_pct = total_return_pct - benchmark_return_pct
@@ -383,6 +381,6 @@ def print_results(metrics, training_seconds, total_seconds):
 # ──────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("Fetching and caching Nifty 100 + benchmark data...")
+    print(f"Fetching and caching {len(list(dict.fromkeys(UNIVERSE)))} stocks + benchmark...")
     fetch_data()
     print("\nDone. Ready to run train.py")
